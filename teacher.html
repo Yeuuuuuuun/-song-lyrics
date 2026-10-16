@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <title>교사 화면</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="wrap">
+    <div class="teacher-head">
+      <h1>🎵 <span class="song-title"></span> · 모둠별 가사</h1>
+      <span id="summary" class="summary"></span>
+      <button id="refresh" class="btn ghost small" type="button">↻ 새로고침</button>
+    </div>
+    <div id="local-note"></div>
+    <div id="grid" class="grid"></div>
+    <p class="credits"></p>
+  </main>
+
+  <!-- 모둠 가사 크게 보기 -->
+  <section id="detail" class="detail hidden" aria-modal="true" role="dialog">
+    <div class="bar">
+      <div class="inner">
+        <button id="close" class="btn ghost small" type="button">← 목록</button>
+        <h2 id="detail-title"></h2>
+        <button id="prev" class="btn ghost small" type="button">◀ 이전 모둠</button>
+        <button id="next" class="btn ghost small" type="button">다음 모둠 ▶</button>
+        <button id="toggle-sheet" class="btn ghost small" type="button">악보 보기</button>
+      </div>
+    </div>
+    <div class="body">
+      <div id="detail-sheets" class="sheets hidden" style="margin-bottom:20px"></div>
+      <div id="detail-lyrics" class="big-lyrics"></div>
+      <p class="credits" style="font-size:16px"></p>
+    </div>
+  </section>
+
+  <!-- MR 플레이어 -->
+  <div id="player" class="player">
+    <div class="inner">
+      <button id="play" class="play" type="button" aria-label="재생">▶</button>
+      <div class="mid">
+        <div class="label"><span id="mr-name">MR</span> · <span id="time">0:00 / 0:00</span></div>
+        <input id="seek" type="range" min="0" max="100" value="0" step="0.1" aria-label="재생 위치">
+        <div id="mr-msg" class="msg hidden">MR 파일을 아직 고르지 않았어요. 오른쪽 버튼으로 한 번만 골라 두면 이 브라우저가 기억해요.</div>
+      </div>
+      <button id="restart" class="btn small file-btn" type="button">처음부터</button>
+      <label class="btn small file-btn">MR 파일 고르기<input id="mr-file" type="file" accept="audio/*" hidden></label>
+    </div>
+  </div>
+  <audio id="audio" preload="auto"></audio>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script>
+    const $ = s => document.querySelector(s);
+    let data = {};
+    let current = null;
+
+    document.querySelectorAll(".song-title").forEach(el => el.textContent = CFG.songTitle);
+    document.title = CFG.songTitle + " - 교사 화면";
+    if (Store.isLocal) {
+      $("#local-note").innerHTML = '<p class="badge-local" style="margin:0 0 16px">연습 모드: 이 기기에서 제출한 것만 보여요 (config.js 의 apiUrl 을 설정하세요)</p>';
+    }
+
+    /* ---------- 목록 ---------- */
+    async function load() {
+      const btn = $("#refresh");
+      btn.disabled = true;
+      try {
+        data = await Store.list();
+        renderGrid();
+      } catch (err) {
+        $("#summary").textContent = "불러오지 못했어요. 인터넷 연결을 확인해 주세요.";
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function renderGrid() {
+      const grid = $("#grid");
+      grid.innerHTML = "";
+      let done = 0;
+      for (let g = 1; g <= CFG.groupCount; g++) {
+        const item = data[g];
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "gcard " + (item ? "done" : "waiting");
+        if (item) done++;
+        const words = item
+          ? SONG.blanks.map(b => `<span class="word">${escapeHtml(item.answers[b.id] || b.original)}</span>`).join("")
+          : '<span style="color:var(--muted)">아직 제출하지 않았어요</span>';
+        card.innerHTML = `
+          <div class="gtitle">${g}모둠 <span class="state">${item ? "제출 완료" : "작성 중"}</span></div>
+          <div class="words">${words}</div>
+          <div class="time">${item ? "제출 " + formatTime(item.updatedAt) : ""}</div>`;
+        if (item) card.onclick = () => openDetail(g);
+        grid.appendChild(card);
+      }
+      $("#summary").textContent = `${done} / ${CFG.groupCount} 모둠 제출`;
+    }
+
+    /* ---------- 크게 보기 ---------- */
+    function submittedGroups() {
+      return Object.keys(data).map(Number).filter(g => g >= 1 && g <= CFG.groupCount).sort((a, b) => a - b);
+    }
+
+    function openDetail(g) {
+      current = g;
+      const item = data[g];
+      $("#detail-title").textContent = `${g}모둠의 「${CFG.songTitle}」`;
+      $("#detail-lyrics").innerHTML = SONG.verses.map(verse =>
+        '<div class="verse">' + verse.map(line =>
+          "<div>" + line.map(t => t.type === "text"
+            ? escapeHtml(t.text)
+            : `<mark>${escapeHtml(item.answers[t.id] || SONG.blanks[t.id].original)}</mark>`
+          ).join("") + "</div>"
+        ).join("") + "</div>"
+      ).join("");
+      const list = submittedGroups();
+      $("#prev").disabled = list.indexOf(g) <= 0;
+      $("#next").disabled = list.indexOf(g) >= list.length - 1;
+      $("#detail").classList.remove("hidden");
+      $("#detail").scrollTop = 0;
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeDetail() {
+      $("#detail").classList.add("hidden");
+      document.body.style.overflow = "";
+      current = null;
+      renderGrid();
+    }
+
+    function step(dir) {
+      const list = submittedGroups();
+      const next = list[list.indexOf(current) + dir];
+      if (next) openDetail(next);
+    }
+
+    $("#close").onclick = closeDetail;
+    $("#prev").onclick = () => step(-1);
+    $("#next").onclick = () => step(1);
+    $("#refresh").onclick = load;
+    $("#toggle-sheet").onclick = () => {
+      const s = $("#detail-sheets");
+      if (!s.childElementCount) renderSheets(s);
+      s.classList.toggle("hidden");
+      $("#toggle-sheet").textContent = s.classList.contains("hidden") ? "악보 보기" : "악보 숨기기";
+    };
+    document.addEventListener("keydown", e => {
+      if (current === null) return;
+      if (e.key === "Escape") closeDetail();
+      if (e.key === "ArrowLeft") step(-1);
+      if (e.key === "ArrowRight") step(1);
+      if (e.key === " " && e.target.tagName !== "INPUT") { e.preventDefault(); togglePlay(); }
+    });
+
+    /* ---------- MR ---------- */
+    const audio = $("#audio");
+    const fmt = s => isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}` : "0:00";
+
+    // 고른 MR 파일을 이 브라우저(IndexedDB)에만 저장 — 인터넷에는 올라가지 않아요
+    const MrDB = {
+      key: `mr:${CFG.songId}`,
+      open() {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open("lyrics-mr", 1);
+          req.onupgradeneeded = () => req.result.createObjectStore("files");
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      },
+      async get() {
+        const db = await this.open();
+        return new Promise((resolve, reject) => {
+          const req = db.transaction("files").objectStore("files").get(this.key);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => reject(req.error);
+        });
+      },
+      async put(file) {
+        const db = await this.open();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction("files", "readwrite");
+          tx.objectStore("files").put({ name: file.name, blob: file }, this.key);
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+        });
+      },
+    };
+
+    function useMr(blob, name) {
+      if (audio.src.startsWith("blob:")) URL.revokeObjectURL(audio.src);
+      audio.src = URL.createObjectURL(blob);
+      $("#mr-name").textContent = name;
+    }
+
+    async function loadMr() {
+      try {
+        const saved = await MrDB.get();
+        if (saved) return useMr(saved.blob, saved.name);
+      } catch {}
+      if (CFG.mrFile) audio.src = CFG.mrFile;
+      else $("#mr-msg").classList.remove("hidden");
+    }
+
+    audio.onerror = () => $("#mr-msg").classList.remove("hidden");
+    audio.onloadedmetadata = () => { $("#mr-msg").classList.add("hidden"); updateTime(); };
+    audio.ontimeupdate = updateTime;
+    audio.onplay = () => $("#play").textContent = "❚❚";
+    audio.onpause = () => $("#play").textContent = "▶";
+    audio.onended = () => $("#play").textContent = "▶";
+
+    function updateTime() {
+      $("#time").textContent = `${fmt(audio.currentTime)} / ${fmt(audio.duration)}`;
+      if (audio.duration) $("#seek").value = audio.currentTime / audio.duration * 100;
+    }
+    function togglePlay() {
+      if (audio.paused) audio.play().catch(() => $("#mr-msg").classList.remove("hidden"));
+      else audio.pause();
+    }
+    $("#play").onclick = togglePlay;
+    $("#restart").onclick = () => { audio.currentTime = 0; audio.play().catch(() => {}); };
+    $("#seek").oninput = e => { if (audio.duration) audio.currentTime = e.target.value / 100 * audio.duration; };
+    $("#mr-file").onchange = async e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      useMr(f, f.name);
+      try { await MrDB.put(f); } catch {}
+      e.target.value = "";
+    };
+
+    loadMr();
+    load();
+    // 수업 중 새 제출을 자동으로 반영 (목록 화면일 때만)
+    setInterval(() => { if (current === null) load(); }, 15000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>가사 바꾸기</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 홈: 학급 코드 -->
+  <section id="view-code" class="home">
+    <div class="card">
+      <div class="emoji">🎵</div>
+      <h1 class="song-title"></h1>
+      <p class="sub">우리 모둠만의 가사로 바꿔 불러요!</p>
+      <form id="code-form">
+        <input id="code-input" class="code-input" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="코드" aria-label="학급 코드">
+        <p id="code-error" class="error"></p>
+        <button class="btn" type="submit" style="width:100%;max-width:260px">들어가기</button>
+      </form>
+      <div class="local-note"></div>
+      <p class="credits"></p>
+    </div>
+  </section>
+
+  <!-- 홈: 모둠 선택 -->
+  <section id="view-group" class="home hidden">
+    <div class="card">
+      <div class="emoji">👫</div>
+      <h1>우리 모둠은?</h1>
+      <p class="sub">모둠 번호를 눌러 주세요</p>
+      <div id="groups" class="groups"></div>
+      <p style="margin-top:20px"><button id="back-code" class="btn ghost small" type="button">← 처음으로</button></p>
+    </div>
+  </section>
+
+  <!-- 가사 바꾸기 -->
+  <section id="view-editor" class="hidden">
+    <header class="topbar">
+      <div class="inner">
+        <button id="back-group" class="btn ghost small" type="button">←</button>
+        <h2 class="song-title"></h2>
+        <span id="group-chip" class="group-chip"></span>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <div class="section-title">🎼 악보</div>
+      <div id="sheets" class="sheets"></div>
+
+      <div class="section-title">✏️ 가사 바꾸기</div>
+      <div class="help">
+        노란 칸을 눌러 우리 모둠이 바꾼 말을 써 보세요.<br>
+        칸 아래 숫자는 <b>글자 수</b>예요. 원래 가사와 글자 수가 같으면 <span style="color:var(--green);font-weight:800">초록색</span>이 되어 노래하기 좋아요.<br>
+        점선 밑줄 글자는 앞에서 바꾼 말이 <b>자동으로</b> 들어가요.
+      </div>
+      <div id="lyrics" class="lyrics" style="margin-top:16px"></div>
+      <p class="credits"></p>
+    </main>
+
+    <footer class="submit-bar">
+      <div class="inner">
+        <div id="status" class="status"></div>
+        <button id="submit" class="btn" type="button">제출하기</button>
+      </div>
+    </footer>
+  </section>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script>
+    const $ = s => document.querySelector(s);
+    const views = ["code", "group", "editor"];
+    let group = null;
+    let answers = {};
+    let lastSubmitted = null;
+
+    function show(name) {
+      views.forEach(v => $("#view-" + v).classList.toggle("hidden", v !== name));
+      window.scrollTo(0, 0);
+    }
+
+    function toast(msg, ms = 2600) {
+      const t = $("#toast");
+      t.textContent = msg;
+      t.classList.remove("hidden");
+      clearTimeout(t._timer);
+      t._timer = setTimeout(() => t.classList.add("hidden"), ms);
+    }
+
+    document.querySelectorAll(".song-title").forEach(el => el.textContent = CFG.songTitle);
+    document.title = CFG.songTitle + " - 가사 바꾸기";
+    if (Store.isLocal) {
+      $(".local-note").innerHTML = '<span class="badge-local">연습 모드: 이 기기에만 저장돼요</span>';
+    }
+
+    /* ---------- 학급 코드 ---------- */
+    $("#code-form").addEventListener("submit", e => {
+      e.preventDefault();
+      if ($("#code-input").value.trim() === CFG.classCode) {
+        sessionStorage.setItem("classOk", "1");
+        $("#code-error").textContent = "";
+        show("group");
+      } else {
+        $("#code-error").textContent = "코드가 맞지 않아요. 다시 확인해 주세요.";
+        $("#code-input").select();
+      }
+    });
+
+    /* ---------- 모둠 선택 ---------- */
+    for (let g = 1; g <= CFG.groupCount; g++) {
+      const b = document.createElement("button");
+      b.className = "group-btn";
+      b.type = "button";
+      b.textContent = `${g}모둠`;
+      b.onclick = () => openEditor(g);
+      $("#groups").appendChild(b);
+    }
+    $("#back-code").onclick = () => { sessionStorage.removeItem("classOk"); $("#code-input").value = ""; show("code"); };
+    $("#back-group").onclick = () => { history.replaceState(null, "", location.pathname); show("group"); };
+
+    /* ---------- 가사 편집 ---------- */
+    const draftKey = g => `draft:${CFG.classCode}:${CFG.songId}:${g}`;
+
+    function renderLyrics() {
+      const box = $("#lyrics");
+      box.innerHTML = "";
+      SONG.verses.forEach(verse => {
+        const v = document.createElement("div");
+        v.className = "verse";
+        verse.forEach(line => {
+          const l = document.createElement("div");
+          l.className = "line";
+          line.forEach(t => {
+            if (t.type === "text") {
+              l.appendChild(document.createTextNode(t.text));
+            } else if (t.type === "blank") {
+              const original = SONG.blanks[t.id].original;
+              const wrap = document.createElement("span");
+              wrap.className = "blank-wrap";
+              const input = document.createElement("input");
+              input.className = "blank";
+              input.dataset.id = t.id;
+              input.placeholder = original;
+              input.autocomplete = "off";
+              input.maxLength = 20;
+              input.setAttribute("aria-label", `${original} 바꾸기`);
+              input.value = answers[t.id] || "";
+              input.addEventListener("input", () => {
+                answers[t.id] = input.value.trim();
+                localStorage.setItem(draftKey(group), JSON.stringify(answers));
+                updateBlank(t.id);
+                updateStatus();
+              });
+              const count = document.createElement("span");
+              count.className = "count";
+              count.dataset.id = t.id;
+              wrap.append(input, count);
+              l.appendChild(wrap);
+            } else {
+              const s = document.createElement("span");
+              s.className = "ref";
+              s.dataset.ref = t.id;
+              l.appendChild(s);
+            }
+          });
+          v.appendChild(l);
+        });
+        box.appendChild(v);
+      });
+      SONG.blanks.forEach(b => updateBlank(b.id));
+      updateStatus();
+    }
+
+    function updateBlank(id) {
+      const original = SONG.blanks[id].original;
+      const value = answers[id] || "";
+      const input = document.querySelector(`.blank[data-id="${id}"]`);
+      const n = syllables(value), target = syllables(original);
+      input.style.width = (Math.max(n, target) * 1.05 + 1.4) + "em";
+      input.classList.toggle("filled", !!value);
+      const count = document.querySelector(`.count[data-id="${id}"]`);
+      count.textContent = `${n}/${target}`;
+      count.classList.toggle("match", n === target);
+      document.querySelectorAll(`.ref[data-ref="${id}"]`).forEach(r => {
+        r.textContent = value || original;
+        r.classList.toggle("empty", !value);
+      });
+    }
+
+    function filledCount() {
+      return SONG.blanks.filter(b => answers[b.id]).length;
+    }
+
+    function updateStatus() {
+      const total = SONG.blanks.length, done = filledCount();
+      let msg = `<b>${done}/${total}</b>칸 완성`;
+      if (lastSubmitted) msg += ` · 제출함 ${formatTime(lastSubmitted)}`;
+      $("#status").innerHTML = msg;
+      $("#submit").textContent = lastSubmitted ? "다시 제출하기" : "제출하기";
+    }
+
+    async function openEditor(g) {
+      group = g;
+      history.replaceState(null, "", "#g" + g);
+      $("#group-chip").textContent = `${g}모둠`;
+      answers = {};
+      lastSubmitted = null;
+      try { answers = JSON.parse(localStorage.getItem(draftKey(g))) || {}; } catch {}
+      show("editor");
+      renderSheets($("#sheets"));
+      renderLyrics();
+
+      // 이미 제출한 가사가 있으면 불러오기 (이 기기에 쓰던 내용이 없을 때만 덮어씀)
+      try {
+        const saved = await Store.get(g);
+        if (group !== g) return;
+        if (saved) {
+          lastSubmitted = saved.updatedAt;
+          if (!filledCount()) answers = { ...saved.answers };
+          renderLyrics();
+          toast(`${g}모둠이 제출한 가사를 불러왔어요`);
+        }
+      } catch (err) {
+        toast("인터넷 연결을 확인해 주세요");
+      }
+    }
+
+    $("#submit").onclick = async () => {
+      const empty = SONG.blanks.filter(b => !answers[b.id]);
+      if (empty.length) {
+        toast(`아직 비어 있는 칸이 ${empty.length}개 있어요`);
+        document.querySelector(`.blank[data-id="${empty[0].id}"]`).focus();
+        return;
+      }
+      if (!confirm(`${group}모둠 가사를 제출할까요?`)) return;
+      const btn = $("#submit");
+      btn.disabled = true;
+      btn.textContent = "제출 중…";
+      try {
+        const res = await Store.save(group, { ...answers });
+        lastSubmitted = res.updatedAt || new Date().toISOString();
+        toast("🎉 제출했어요! 고치고 싶으면 다시 제출해도 돼요", 3500);
+      } catch (err) {
+        toast("제출하지 못했어요. 잠시 뒤 다시 눌러 주세요");
+      } finally {
+        btn.disabled = false;
+        updateStatus();
+      }
+    };
+
+    /* ---------- 시작 ---------- */
+    const m = location.hash.match(/^#g(\d+)$/);
+    if (sessionStorage.getItem("classOk") && m && +m[1] >= 1 && +m[1] <= CFG.groupCount) openEditor(+m[1]);
+    else if (sessionStorage.getItem("classOk")) show("group");
+    else show("code");
+  </script>
+</body>
+</html>
