@@ -25,7 +25,7 @@ window.APP_CONFIG = {
 
   // 구글 Apps Script 웹 앱 주소 (설치 안내서 3단계에서 받은 주소를 붙여넣기)
   // 비워 두면 '연습 모드'로 동작해요: 이 기기 안에만 저장돼서 다른 기기와 공유되지 않아요.
-  apiUrl: "",
+  apiUrl: "https://script.google.com/a/macros/susin.sen.es.kr/s/AKfycbzNIjW090mcZ6lDvwrfytib9xBHrY7DdrlmLqfycO_u0tUUjzf90nM0flxekisq-mnN/exec",
 
   /* 가사 쓰는 법
    *  - 빈 줄로 절(덩어리)을 나눠요.
