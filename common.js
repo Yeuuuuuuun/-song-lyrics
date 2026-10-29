@@ -113,6 +113,24 @@ const Store = {
     if (!data.ok) throw new Error(data.error || "제출 실패");
     return data;
   },
+
+  // 지우기 (교사용): group 에 모둠 번호 또는 "all"
+  async remove(group) {
+    if (this.isLocal) {
+      const all = group === "all" ? {} : this.readLocal();
+      delete all[group];
+      localStorage.setItem(this.localKey, JSON.stringify(all));
+      return { ok: true };
+    }
+    const res = await fetch(CFG.apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "delete", classCode: CFG.classCode, songId: CFG.songId, group: String(group) }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || "삭제 실패");
+    return data;
+  },
 };
 
 // 악보 이미지 영역 채우기 (파일이 없으면 안내 문구)

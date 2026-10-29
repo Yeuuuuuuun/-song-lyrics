@@ -47,12 +47,7 @@
 
     <main class="wrap">
       <div class="section-title">✏️ 가사 바꾸기</div>
-      <div class="help">
-        노란 칸을 눌러 우리 모둠이 바꾼 말을 써 보세요. 바꾼 말은 <span style="color:var(--green);font-weight:800">초록색</span>으로 보여요.<br>
-        '을/를' 같은 글자도 함께 바꿀 수 있어요. (예: 놀이터를 → 가로등을, 간판을, 횡단보도)<br>
-        칸 아래 숫자는 <b>글자 수</b>예요. 원래 가사와 글자 수가 같으면 <b>✓</b>가 붙어서 노래하기 좋아요.<br>
-        점선 밑줄 글자는 앞에서 바꾼 말이 <b>자동으로</b> 들어가요.
-      </div>
+      <div class="help">노래에 맞춰 불러 보며 어울리는 말을 찾아 보세요.</div>
       <div id="lyrics" class="lyrics" style="margin-top:16px"></div>
       <p class="credits"></p>
     </main>
@@ -181,8 +176,7 @@
       input.style.width = (Math.max(n, target) * 1.05 + 1.4) + "em";
       input.classList.toggle("filled", !!value);
       const count = document.querySelector(`.count[data-id="${id}"]`);
-      count.textContent = n === target ? `${n}/${target} ✓` : `${n}/${target}`;
-      count.classList.toggle("match", n === target);
+      count.textContent = `${n}/${target}`;
       document.querySelectorAll(`.ref[data-ref="${id}"]`).forEach(r => {
         r.textContent = value || original;
         r.classList.toggle("empty", !value);

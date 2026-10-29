@@ -7,12 +7,13 @@
   <title>교사 화면</title>
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="teacher">
   <main class="wrap">
     <div class="teacher-head">
       <h1>🎵 <span class="song-title"></span> · 모둠별 가사</h1>
       <span id="summary" class="summary"></span>
       <button id="refresh" class="btn ghost small" type="button">↻ 새로고침</button>
+      <button id="reset-all" class="btn small danger" type="button">전체 초기화</button>
     </div>
     <div id="local-note"></div>
     <div id="grid" class="grid"></div>
@@ -56,6 +57,7 @@
   <script src="common.js"></script>
   <script>
     const $ = s => document.querySelector(s);
+    $("#grid").style.setProperty("--cols", CFG.groupCount);
     let data = {};
     let current = null;
 
@@ -85,22 +87,38 @@
       let done = 0;
       for (let g = 1; g <= CFG.groupCount; g++) {
         const item = data[g];
-        const card = document.createElement("button");
-        card.type = "button";
+        const card = document.createElement("div");
         card.className = "gcard " + (item ? "done" : "waiting");
         if (item) done++;
         const words = item
           ? SONG.blanks.map(b => `<span class="word">${escapeHtml(item.answers[b.id] || b.original)}</span>`).join("")
           : '<span style="color:var(--muted)">아직 제출하지 않았어요</span>';
         card.innerHTML = `
-          <div class="gtitle">${g}모둠 <span class="state">${item ? "제출 완료" : "작성 중"}</span></div>
+          <div class="gtitle">${g}모둠 <span class="state">${item ? "제출 완료" : "작성 중"}</span>${item ? '<button class="del" type="button">삭제</button>' : ""}</div>
           <div class="words">${words}</div>
           <div class="time">${item ? "제출 " + formatTime(item.updatedAt) : ""}</div>`;
-        if (item) card.onclick = () => openDetail(g);
+        if (item) {
+          card.setAttribute("role", "button");
+          card.tabIndex = 0;
+          card.onclick = () => openDetail(g);
+          card.querySelector(".del").onclick = e => { e.stopPropagation(); removeGroup(g); };
+        }
         grid.appendChild(card);
       }
       $("#summary").textContent = `${done} / ${CFG.groupCount} 모둠 제출`;
     }
+
+    /* ---------- 지우기 ---------- */
+    async function removeGroup(g) {
+      if (!confirm(`${g}모둠이 제출한 가사를 지울까요?\n지운 내용은 되돌릴 수 없어요.`)) return;
+      try { await Store.remove(g); } catch (err) { alert("지우지 못했어요. 잠시 뒤 다시 눌러 주세요."); }
+      load();
+    }
+    $("#reset-all").onclick = async () => {
+      if (!confirm("모든 모둠의 제출을 지우고 처음부터 시작할까요?\n지운 내용은 되돌릴 수 없어요.")) return;
+      try { await Store.remove("all"); } catch (err) { alert("초기화하지 못했어요. 잠시 뒤 다시 눌러 주세요."); }
+      load();
+    };
 
     /* ---------- 크게 보기 ---------- */
     function submittedGroups() {

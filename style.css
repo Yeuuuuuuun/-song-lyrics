@@ -198,3 +198,22 @@ button { font: inherit; cursor: pointer; }
 }
 
 .credits { color: var(--muted); font-size: 13px; text-align: center; margin: 24px 0 0; line-height: 1.5; word-break: keep-all; }
+
+/* ---------- 교사 화면: PC(프로젝터)에서 모둠 카드를 화면 가득 ---------- */
+.teacher .wrap { max-width: none; padding: 24px 32px 120px; }
+.gcard { cursor: pointer; }
+.gcard.waiting { cursor: default; }
+.gcard .del {
+  margin-left: 8px; border: 0; background: transparent; color: var(--muted);
+  font-size: 13px; font-weight: 700; padding: 4px 8px; border-radius: 8px; cursor: pointer;
+}
+.gcard .del:hover { background: #fdecea; color: #c0392b; }
+.btn.danger { background: #fdecea; color: #c0392b; }
+@media (min-width: 1000px) {
+  .teacher .grid { grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr)); gap: 20px; }
+  .teacher .gcard { min-height: calc(100vh - 240px); padding: 24px; }
+  .teacher .gcard .gtitle { font-size: 30px; }
+  .teacher .gcard .words { flex-direction: column; gap: 12px; }
+  .teacher .gcard .word { font-size: 32px; padding: 8px 14px; text-align: center; word-break: keep-all; }
+  .teacher .gcard .time { font-size: 15px; }
+}

@@ -45,6 +45,7 @@ function doPost(e) {
   lock.waitLock(10000);
   try {
     const body = JSON.parse(e.postData.contents);
+    if (body.action === 'delete') return deleteRows_(body);
     if (body.action !== 'save') return json_({ ok: false, error: 'unknown action' });
 
     const classCode = String(body.classCode || '').slice(0, 20);
@@ -77,6 +78,25 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// 지우기: group 이 'all' 이면 이 학급·노래의 제출을 모두, 아니면 그 모둠만 지움
+function deleteRows_(body) {
+  const classCode = String(body.classCode || '');
+  const songId = String(body.songId || '');
+  const group = String(body.group || '');
+  if (!classCode || !songId || !group) return json_({ ok: false, error: 'missing fields' });
+  const sh = getSheet_();
+  const values = sh.getDataRange().getValues();
+  let deleted = 0;
+  for (let i = values.length - 1; i >= 1; i--) {   // 아래에서부터 지워야 행 번호가 밀리지 않아요
+    const r = values[i];
+    if (String(r[0]) === classCode && String(r[1]) === songId && (group === 'all' || String(r[2]) === group)) {
+      sh.deleteRow(i + 1);
+      deleted++;
+    }
+  }
+  return json_({ ok: true, deleted: deleted });
 }
 
 function safeParse_(s) {
