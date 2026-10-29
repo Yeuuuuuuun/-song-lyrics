@@ -217,3 +217,15 @@ button { font: inherit; cursor: pointer; }
   .teacher .gcard .word { font-size: 32px; padding: 8px 14px; text-align: center; word-break: keep-all; }
   .teacher .gcard .time { font-size: 15px; }
 }
+
+/* ---------- 교사 화면: 모둠별 색 (빨강 계열은 '틀림' 느낌이라 뺐어요) ---------- */
+.teacher .g1 { --g: #c98a12; --g-soft: #fff3d6; }  /* 해바라기 */
+.teacher .g2 { --g: #2fa36b; --g-soft: #e1f5ea; }  /* 새싹 */
+.teacher .g3 { --g: #2f7fc1; --g-soft: #e3f0fb; }  /* 하늘 */
+.teacher .g4 { --g: #7a5bc7; --g-soft: #eee8fb; }  /* 라벤더 */
+.teacher .g5 { --g: #d4588c; --g-soft: #fce7f0; }  /* 꽃분홍 */
+.teacher .gcard.done[class*=" g"] { border-color: var(--g); }
+.teacher .gcard.done[class*=" g"] .state,
+.teacher .gcard[class*=" g"] .word { background: var(--g-soft); color: var(--g); }
+.teacher .gcard.done[class*=" g"]:hover { background: var(--g-soft); }
+.teacher .detail[class*=" g"] .big-lyrics mark { background: var(--g-soft); color: var(--g); }

@@ -88,7 +88,7 @@
       for (let g = 1; g <= CFG.groupCount; g++) {
         const item = data[g];
         const card = document.createElement("div");
-        card.className = "gcard " + (item ? "done" : "waiting");
+        card.className = `gcard g${(g - 1) % 5 + 1} ` + (item ? "done" : "waiting");
         if (item) done++;
         const words = item
           ? SONG.blanks.map(b => `<span class="word">${escapeHtml(item.answers[b.id] || b.original)}</span>`).join("")
@@ -140,7 +140,7 @@
       const list = submittedGroups();
       $("#prev").disabled = list.indexOf(g) <= 0;
       $("#next").disabled = list.indexOf(g) >= list.length - 1;
-      $("#detail").classList.remove("hidden");
+      $("#detail").className = `detail g${(g - 1) % 5 + 1}`;
       $("#detail").scrollTop = 0;
       document.body.style.overflow = "hidden";
     }
