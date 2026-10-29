@@ -13,7 +13,7 @@ window.APP_CONFIG = {
   songTitle: "함께 걸어 좋은 길",
 
   // 악보 이미지 (여러 장이면 ["images/sheet1.png", "images/sheet2.png"] 처럼)
-  sheetImages: ["images/sheet.png"],
+  sheetImages: ["images/sheet-textbook.png"],
 
   // 출처 표시 (학생·교사 화면 아래에 나와요)
   credits: "이경애 작사 · 정보형 작곡 | 반주: 천재교과서 T셀파",
